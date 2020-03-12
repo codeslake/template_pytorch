@@ -1,0 +1,28 @@
+# data
+*.png
+*.pytorch
+network/*
+
+# trash
+.dropbox
+
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.npy
+
+### Vim ###
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+*.un~
+Session.vim
+.netrwhist
+*~
+
+### pycharm ###
+.idea
+
+### sublime ###
+*.sublime*
