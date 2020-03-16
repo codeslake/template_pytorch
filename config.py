@@ -8,11 +8,12 @@ def get_config(project = '', mode = ''):
     config = edict()
     config.project = project
     config.mode = mode
+
     config.is_train = True
     config.thread_num = 1
 
     ##################################### TRAIN #####################################
-    config.model = 'input_add'
+    config.model = ''
 
     config.batch_size = 1
     config.height = 256
@@ -31,6 +32,7 @@ def get_config(project = '', mode = ''):
     config.grad_norm_clip_val = 1.0
 
     # data
+    config.frame_num = 1
     config.is_color = True
     config.is_augment = True
     config.is_reverse = True
@@ -42,9 +44,6 @@ def get_config(project = '', mode = ''):
     config.data_path = ''
     config.input_path = 'input' #os.path.join(config.data_path, 'input')
     config.gt_path = 'gt' #os.path.join(config.data_path, 'gt')
-
-    # dataloader
-    config.skip_length = [0]
 
     # logs
     config.max_ckpt_num = 10
@@ -59,18 +58,18 @@ def get_config(project = '', mode = ''):
     offset = '/Jarvis/logs/junyonglee'
     offset = os.path.join(offset, config.project)
     offset = os.path.join(offset, '{}'.format(mode))
-    config.LOG_DIR.ckpt = os.path.join(offset, 'checkpoint', 'train', 'epoch')
-    config.LOG_DIR.ckpt_itr = os.path.join(offset, 'checkpoint', 'train', 'itr')
-    config.LOG_DIR.log_scalar_train_epoch = os.path.join(offset, 'log', 'train', 'scalar', 'train', 'epoch')
-    config.LOG_DIR.log_scalar_train_itr = os.path.join(offset, 'log', 'train', 'scalar', 'train', 'itr')
-    config.LOG_DIR.log_scalar_valid = os.path.join(offset, 'log', 'train', 'scalar', 'valid')
-    config.LOG_DIR.log_image = os.path.join(offset, 'log', 'train', 'image', 'train')
-    config.LOG_DIR.sample = os.path.join(offset, 'sample', 'train')
-    config.LOG_DIR.config = os.path.join(offset, 'config')
+    config.LOG_DIR.offset = offset
+    config.LOG_DIR.ckpt = os.path.join(config.LOG_DIR.offset, 'checkpoint', 'train', 'epoch')
+    config.LOG_DIR.ckpt_itr = os.path.join(config.LOG_DIR.offset, 'checkpoint', 'train', 'itr')
+    config.LOG_DIR.log_scalar_train_epoch = os.path.join(config.LOG_DIR.offset, 'log', 'train', 'scalar', 'train', 'epoch')
+    config.LOG_DIR.log_scalar_train_itr = os.path.join(config.LOG_DIR.offset, 'log', 'train', 'scalar', 'train', 'itr')
+    config.LOG_DIR.log_scalar_valid = os.path.join(config.LOG_DIR.offset, 'log', 'train', 'scalar', 'valid')
+    config.LOG_DIR.log_image = os.path.join(config.LOG_DIR.offset, 'log', 'train', 'image', 'train')
+    config.LOG_DIR.sample = os.path.join(config.LOG_DIR.offset, 'sample', 'train')
+    config.LOG_DIR.config = os.path.join(config.LOG_DIR.offset, 'config')
 
     ################################## VALIDATION ###################################
     # data path
-    offset = ''
     config.VAL = edict()
     config.VAL.data_path = ''
     config.VAL.input_path = 'input' #os.path.join(config.VAL.data_path, 'input')
@@ -83,16 +82,13 @@ def get_config(project = '', mode = ''):
     config.EVAL.ckpt_name = None
 
     # data dir
-    offset = ''
-    config.EVAL.input_path = os.path.join(offset, 'input')
-    config.EVAL.gt_path = os.path.join(offset, 'gt')
+    config.EVAL.data_path = ''
+    config.EVAL.input_path = 'input' #os.path.join(offset, 'input')
+    config.EVAL.gt_path = 'gt' #os.path.join(offset, 'gt')
     config.EVAL.LOG_DIR = edict()
 
     # log dir
-    offset = '/Jarvis/logs/junyonglee'
-    offset = os.path.join(offset, config.project)
-    offset = os.path.join(offset, '{}'.format(config.mode))
-    config.EVAL.LOG_DIR.save = os.path.join(offset, 'result')
+    config.EVAL.LOG_DIR.save = os.path.join(config.LOG_DIR.offset, 'result')
 
     return config
 

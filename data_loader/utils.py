@@ -36,6 +36,18 @@ def crop_multi(x, wrg, hrg, is_random=False, row_index=0, col_index=1):
             results.append(data[int(h_offset):int(h - h_offset), int(w_offset):int(w - w_offset)])
         return np.asarray(results)
 
+def refine_image(img, val = 16):
+    shape = img.shape
+    if len(shape) == 4:
+        _, h, w, _ = shape[:]
+        return img[:, 0 : h - h % val, 0 : w - w % val, :]
+    elif len(shape) == 3:
+        h, w = shape[:2]
+        return img[0 : h - h % val, 0 : w - w % val, :]
+    elif len(shape) == 2:
+        h, w = shape[:2]
+        return img[0 : h - h % val, 0 : w - w % val]
+
 def get_dict_array_by_key(key, array_num):
     data_holder = collections.OrderedDict()
     for holder_name in key:

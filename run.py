@@ -4,22 +4,17 @@ from tensorboardX import SummaryWriter
 import torch.nn.functional as F
 
 import time
-import getopt
-import math
 import numpy
 import os
-import PIL.Image
 import sys
 import collections
 import numpy as np
-from data_loader.data_loader import Data_Loader
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import gc
 
 from models import create_model
 from utils import *
 from loss import *
-from torch_utils import *
 from ckpt_manager import CKPT_Manager
 
 # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -33,13 +28,6 @@ class Trainer():
         self.model = create_model(config)
         self.model.print()
 
-        ## inputs
-        print(toGreen('Initializing Input...'))
-        print(toRed('\tinput type: {}'.format(self.config.type)))
-        print(toRed('\tis_patch: {}'.format(self.config.is_patch)))
-        inputs = {'inp':None, 'gt':None}
-        self.inputs = collections.OrderedDict(sorted(inputs.items(), key=lambda t:t[0]))
-
         ## checkpoint manager
         self.ckpt_manager = CKPT_Manager(config.LOG_DIR.ckpt, config.mode, config.max_ckpt_num)
         if config.load_pretrained:
@@ -49,13 +37,6 @@ class Trainer():
             print(toRed('\tlearning rate: {}'.format(lr)))
             print(toRed('\tload result: {}'.format(load_result)))
             self.model.set_optim(lr)
-
-        ## data loader
-        print(toGreen('Loading Data Loader...'))
-        self.data_loader_train = Data_Loader(config, is_train = True, name = 'train', thread_num = config.thread_num)
-        self.data_loader_test = Data_Loader(config, is_train = False, name = 'test', thread_num = config.thread_num)
-        self.data_loader_train.init_data_loader(self.inputs)
-        self.data_loader_test.init_data_loader(self.inputs)
 
         ## training vars
         self.max_epoch = 10000
@@ -73,7 +54,7 @@ class Trainer():
             self.err_epoch_train = 0
             self.model.train()
             while True:
-                if self.iteration(self.data_loader_train, epoch): break
+                if self.iteration(epoch): break
             err_epoch_train = self.err_epoch_train / self.itr
 
             ## TEST ##
@@ -82,7 +63,7 @@ class Trainer():
             self.model.eval()
             while True:
                 with torch.no_grad():
-                    if self.iteration(self.data_loader_test, epoch, is_train = False): break
+                    if self.iteration(epoch, is_train = False): break
             err_epoch_test = self.err_epoch_test / self.itr
 
             ## LOG
@@ -93,14 +74,18 @@ class Trainer():
             self.summary.add_scalar('loss/epoch_train', err_epoch_train, epoch)
             self.summary.add_scalar('loss/epoch_test', err_epoch_test, epoch)
 
-    def iteration(self, data_loader, epoch, is_train = True):
+    def iteration(self, epoch, is_train = True):
         lr = None
         itr_time = time.time()
 
-        inputs, is_end = data_loader.get_feed()
-        if is_end: return is_end
+        is_end = self.model.iteration(epoch, is_train)
+        if is_end: return True
 
-        errs, outs = self.model.get_results(inputs)
+        inputs = self.model.visuals['inputs']
+        errs = self.model.visuals['errs']
+        outs = self.model.visuals['outs']
+        lr = self.model.visuals['lr']
+        num_itr = self.model.visuals['num_itr']
 
         if is_train:
             lr = self.model.update(epoch)
@@ -108,23 +93,23 @@ class Trainer():
             if self.itr % config.write_log_every_itr == 0:
                 try:
                     self.summary.add_scalar('loss/itr', errs['total'].item(), self.itr_global)
-                    vutils.save_image(LAB2RGB_cv(inputs['input'].detach().cpu().numpy(), self.config.type), '{}/{}_{}_1_input.png'.format(self.config.LOG_DIR.sample, epoch, self.itr), nrow=3, padding = 0, normalize = False)
+                    vutils.save_image(inputs['input'], '{}/{}_{}_1_input.png'.format(self.config.LOG_DIR.sample, epoch, self.itr), nrow=3, padding = 0, normalize = False)
                     i = 2
                     for key, val in outs.items():
                         if val is not None:
-                            vutils.save_image(LAB2RGB_cv(val.detach().cpu().numpy(), self.config.type), '{}/{}_{}_{}_out_{}.png'.format(self.config.LOG_DIR.sample, epoch, self.itr, i, key), nrow=3, padding = 0, normalize = False)
+                            vutils.save_image(val, '{}/{}_{}_{}_out_{}.png'.format(self.config.LOG_DIR.sample, epoch, self.itr, i, key), nrow=3, padding = 0, normalize = False)
                         i += 1
 
-                    vutils.save_image(LAB2RGB_cv(inputs['gt'].detach().cpu().numpy(), self.config.type), '{}/{}_{}_{}_gt.png'.format(self.config.LOG_DIR.sample, epoch, self.itr, i), nrow=3, padding = 0, normalize = False)
+                    vutils.save_image(inputs['gt'], '{}/{}_{}_{}_gt.png'.format(self.config.LOG_DIR.sample, epoch, self.itr, i), nrow=3, padding = 0, normalize = False)
                 except Exception as ex:
                     print('saving error: ', ex)
 
-            print_logs('TRAIN', self.config.mode, epoch, itr_time, self.itr, data_loader.num_itr, errs = errs, lr = lr)
+            print_logs('TRAIN', self.config.mode, epoch, itr_time, self.itr, num_itr, errs = errs, lr = lr)
             self.err_epoch_train += errs['total'].item()
             self.itr += 1
             self.itr_global += 1
         else:
-            print_logs('TEST', self.config.mode, epoch, itr_time, self.itr, data_loader.num_itr, errs = errs)
+            print_logs('TEST', self.config.mode, epoch, itr_time, self.itr, num_itr, errs = errs)
             self.err_epoch_test += errs['total'].item()
             self.itr += 1
 
@@ -171,7 +156,6 @@ if __name__ == '__main__':
     config.model = args.model
 
     config.load_pretrained = args.load_pretrained
-    config.load_pretrained_partial = args.load_pretrained_partial
 
     config.epoch_start = args.epoch_start
 
@@ -179,8 +163,8 @@ if __name__ == '__main__':
     print_config(config)
     log_config(config.LOG_DIR.config, config)
 
-    if is_train:
+    if config.is_train:
         trainer = Trainer(config)
         trainer.train()
-    else:
-        return
+    # else:
+    #     return

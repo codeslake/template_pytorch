@@ -18,8 +18,6 @@ class Data_Loader:
         self.is_train = is_train
         self.thread_num = thread_num
 
-        self.skip_length = config.skip_length
-
         if is_train:
             self.input_folder_path_list, self.input_file_path_list, _ = load_file_list(config.data_path, config.input_path)
             self.gt_folder_path_list, self.gt_file_path_list, _ = load_file_list(config.data_path, config.gt_path)
@@ -27,6 +25,7 @@ class Data_Loader:
             self.input_folder_path_list, self.input_file_path_list, _ = load_file_list(config.VAL.data_path, config.VAL.input_path)
             self.gt_folder_path_list, self.gt_file_path_list, _ = load_file_list(config.VAL.data_path, config.VAL.gt_path)
 
+        self.frame_num = config.frame_num
         self.batch_size = config.batch_size
         self.h = config.height
         self.w = config.width
@@ -53,6 +52,19 @@ class Data_Loader:
         self.need_to_be_used = [None] * self.thread_num
         self.feed_dict_holder = get_dict_array_by_key(self.net_placeholder_names, self.thread_num)
         self._init_data_thread()
+
+    def _init_idx(self):
+        self.idx_video = []
+        self.idx_frame = []
+        for i in range(len(self.input_file_path_list)):
+            total_frames = len(self.input_file_path_list[i])
+
+            idx_frame_temp = list(range(0, total_frames - self.frame_num + 1))
+
+            self.idx_frame.append(idx_frame_temp)
+            self.idx_video.append(i)
+
+        self.is_end = False
 
     def get_feed(self):
         thread_idx, is_end = self._get_thread_idx()
@@ -85,23 +97,11 @@ class Data_Loader:
 
         actual_batch = 0
         for i in range(0, self.batch_size):
-            #if self.is_train is False:
-                #print(self.idx_video)
-            if i == 0 and len(self.idx_video) == 0:
+            if len(self.idx_video) == 0:
                 self.is_end = True
                 # tl.logging.debug('[%s] \t\tthread[%s] > releasing lock 2 [%s]' % (self.name, str(thread_idx), str(datetime.now())))
                 self.lock.release()
                 return
-            # original
-            # elif i > 0 and len(self.idx_video) == 0:
-            #     break
-            # ignore actual batch < batch
-            elif i > 0 and len(self.idx_video) == 0:
-                self.is_end = True
-                # tl.logging.debug('[%s] \t\tthread[%s] > releasing lock 2 [%s]' % (self.name, str(thread_idx), str(datetime.now())))
-                self.lock.release()
-                return
-
             else:
                 if self.is_train:
                     idx_x = np.random.randint(len(self.idx_video))
@@ -143,12 +143,12 @@ class Data_Loader:
             data_holder[key] = np.concatenate(data_holder[key][0 : actual_batch], axis = 0)
 
         for holder_name in self.net_placeholder_names:
-            self.feed_dict_holder[holder_name][thread_idx] = data_holder[holder_name]
+            self.feed_dict_holder[holder_name][thread_idx] = torch.FloatTensor(data_holder[holder_name]).cuda()
 
         # print('[%s] \tthread[%s] > _get_batch done [%s]' % (self.name, str(thread_idx), str(datetime.now())))
 
     def _read_dataset(self, data_holder, batch_idx, video_idx, frame_offset, is_reverse):
-        sampled_frame_idx = np.arange(frame_offset, frame_offset + self.search_frame_number)
+        sampled_frame_idx = np.arange(frame_offset, frame_offset + self.frame_num)
         if is_reverse:
             sampled_frame_idx = np.flip(sampled_frame_idx)
 
@@ -184,8 +184,8 @@ class Data_Loader:
         gt_patches = np.transpose(gt_patches, (0, 3, 1, 2, 4))
         gt_patches = gt_patches[:, len(sampled_frame_idx) // 2, :, :, :]
 
-        data_holder['input'][batch_idx] = input_patches
-        data_holder['gt'][batch_idx] = gt_patches
+        data_holder['input'][batch_idx] = input_patches.tranpose([0, 1, 4, 2, 3])
+        data_holder['gt'][batch_idx] = gt_patches.transpoe([0, 3, 1, 2])
 
     def _read_data(self, data_holder, batch_idx, video_idx, frame_idx, sampled_idx, input_patches_temp, gt_patches_temp):
         # read stab frame
@@ -205,18 +205,7 @@ class Data_Loader:
         input_patches_temp[frame_idx] = input_frame
         gt_patches_temp[frame_idx] = gt_frame
 
-    def _init_idx(self):
-        self.idx_video = []
-        self.idx_frame = []
-        for i in range(len(self.input_file_path_list)):
-            total_frames = len(self.input_file_path_list[i])
 
-            idx_frame_temp = list(range(0, total_frames - self.search_frame_number + 1))
-
-            self.idx_frame.append(idx_frame_temp)
-            self.idx_video.append(i)
-
-        self.is_end = False
 
     def _update_idx(self, idx_x, idx_y):
         video_idx = self.idx_video[idx_x]

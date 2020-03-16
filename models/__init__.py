@@ -1,8 +1,7 @@
-def create_model(config):
-    try:
-        exec('from .{} import Model'.format(config.model))
-    except Exception as ex:
-        print('Model [{}] not recognized: '.format(config.model), ex)
+import importlib
 
-    model = Model(config)
+def create_model(config):
+    lib = importlib.import_module('models.{}'.format(config.model))
+    model = lib.Model(config)
+    
     return model
