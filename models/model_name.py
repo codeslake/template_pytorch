@@ -17,11 +17,11 @@ class Model(baseModel):
         inputs = collections.OrderedDict(sorted(inputs.items(), key=lambda t:t[0]))
         
         self.network = Network()
-
+        self._set_optim()
         self.network.init()
+
         self.network = torch.nn.DataParallel(self.network).cuda()
 
-        self._set_optim()
         self._set_dataloader(inputs)
 
     def iteration(self, epoch, is_train):
